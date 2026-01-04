@@ -2,7 +2,7 @@
 
 **No ads. No spoilers. Just your shows.**  
 
- [Start tracking](https://raw-json.github.io/OfluffShow/)
+ [Start tracking](https://raw-json.github.io/0fluffShow/)
 
 ---
 
@@ -28,7 +28,7 @@ This app **was generated with Google Gemini** based on my prompts. I designed th
 ---
 
 ## 📦 Usage
-1. Open [Live Link](https://raw-json.github.io/OfluffShow/) or `index.html` in your browser.  
+1. Open [Live Link](https://raw-json.github.io/0fluffShow/) or `index.html` in your browser.  
 2. Click **Add Show** to start tracking your series.  
 3. Use **Backup(↓)/Restore(↑)** to save or load data.  
 
