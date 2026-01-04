@@ -6,11 +6,6 @@
 
 ---
 
-## 🤖 Transparency Note
-This app **was generated with Google Gemini** based on my prompts. I designed the features, but the AI wrote the HTML, CSS, and JavaScript.
-
----
-
 ## 🚀 Features
 - 🎬 **Track Shows & Episodes:** Add Title, Season, Episode, and Poster Image.  
 - ⚡ **Quick Updates:** Increment your episode or season easily.  
@@ -36,5 +31,10 @@ This app **was generated with Google Gemini** based on my prompts. I designed th
 
 ## 📄 License
 [MIT License](LICENSE) free to use and modify.
+
+---
+
+## 🤖 Transparency Note
+This app **was generated with Google Gemini** based on my prompts. I designed the features, but the AI wrote the HTML, CSS, and JavaScript.
 
 ✨ Made with 💡 ideas + 🤖 Gemini magic.
