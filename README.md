@@ -2,7 +2,7 @@
 
 **No ads. No spoilers. Just your shows.**  
 
-Live Link: [Try it here!](https://raw-json.github.io/OfluffShow/)
+ [Start tracking](https://raw-json.github.io/OfluffShow/)
 
 ---
 
@@ -35,6 +35,6 @@ This app **was generated with Google Gemini** based on my prompts. I designed th
 ---
 
 ## 📄 License
-MIT License – free to fork, modify, and tinker with.
+[MIT License](LICENSE) free to use and modify.
 
 ✨ Made with 💡 ideas + 🤖 Gemini magic.
