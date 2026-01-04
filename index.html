@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OfluffShow</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<header>
+    <h1>OfluffShow</h1>
+    <div class="controls">
+        <button onclick="openModal()">+ Add</button>
+        <button class="icon-btn" onclick="exportData()" title="Backup">↓</button>
+        <button class="icon-btn" onclick="document.getElementById('importFile').click()" title="Restore">↑</button>
+        <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(event)">
+    </div>
+</header>
+
+<main id="showList" class="grid">
+    </main>
+
+<div id="modal" class="hidden">
+    <div class="modal-content">
+        <h2>Add Show</h2>
+        
+        <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="title" placeholder="Show Title">
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label>Season</label>
+                <input type="number" id="season" value="1" min="1">
+            </div>
+            <div class="form-group">
+                <label>Episode</label>
+                <input type="number" id="episode" value="1" min="1">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Poster (Optional)</label>
+            <input type="file" id="poster" accept="image/*">
+        </div>
+
+        <div class="modal-actions">
+            <button class="secondary" onclick="closeModal()">Cancel</button>
+            <button onclick="saveShow()">Save</button>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
