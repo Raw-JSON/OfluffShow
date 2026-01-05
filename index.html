@@ -11,7 +11,10 @@
 <body>
 
 <header>
-    <h1>0fluffShow</h1>
+    <div class="logo-area">
+        <img src="icon.svg" alt="Logo" class="app-icon">
+        <h1>0fluffShow</h1>
+    </div>
     <div class="controls">
         <button onclick="openModal()">+ Add</button>
         <button class="icon-btn" onclick="exportData()" title="Backup">↓</button>
@@ -25,22 +28,26 @@
 
 <div id="modal" class="hidden">
     <div class="modal-content">
-        <h2>Add Show</h2>
-        
-        <div class="form-group">
+        <h2 id="modalTitle">Manage Show</h2>
+        <input type="hidden" id="showId"> <div class="form-group">
             <label>Title</label>
             <input type="text" id="title" placeholder="Show Title">
         </div>
 
         <div class="row">
             <div class="form-group">
-                <label>Season</label>
+                <label>Current Season</label>
                 <input type="number" id="season" value="1" min="1">
             </div>
             <div class="form-group">
-                <label>Episode</label>
+                <label>Current Episode</label>
                 <input type="number" id="episode" value="1" min="1">
             </div>
+        </div>
+
+        <div class="form-group">
+            <label>Total Seasons (Optional)</label>
+            <input type="number" id="totalSeasons" placeholder="e.g. 5" min="1">
         </div>
 
         <div class="form-group">
