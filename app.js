@@ -90,34 +90,56 @@ async function saveShow() {
         const season = parseInt(document.getElementById('season')?.value || 1);
         const episode = parseInt(document.getElementById('episode')?.value || 1);
         
+        const totalInput = document.getElementById('totalSeasons')?.value;
+        const totalSeasons = totalInput ? parseInt(totalInput) : null;
+
         // 1. CONVERT IMAGE FIRST (Outside the transaction)
         const fileInput = document.getElementById('poster');
         const posterFile = fileInput ? fileInput.files[0] : null;
-        let posterBase64 = null;
+        let newPosterBase64 = null;
+        
         if (posterFile) {
-            posterBase64 = await toBase64(posterFile);
+            newPosterBase64 = await toBase64(posterFile);
         }
 
         // 2. NOW START TRANSACTION
+        // We only open the transaction AFTER the await finishes
         const tx = db.transaction(STORE_NAME, "readwrite");
         const store = tx.objectStore(STORE_NAME);
-
-        const showData = {
-            title, 
-            season, 
-            episode, 
-            poster: posterBase64, 
-            updated: Date.now()
-        };
 
         // Check if we are editing or adding
         const idInput = document.getElementById('showId');
         const editId = idInput && idInput.value ? parseInt(idInput.value) : null;
 
         if (editId) {
-            showData.id = editId;
-            store.put(showData);
+            // EDIT MODE
+            store.get(editId).onsuccess = (e) => {
+                const existing = e.target.result;
+                if (!existing) return;
+
+                const showData = {
+                    id: editId,
+                    title, 
+                    season, 
+                    episode, 
+                    totalSeasons,
+                    // Use new poster if uploaded, otherwise keep old one
+                    poster: newPosterBase64 || existing.poster, 
+                    updated: Date.now()
+                };
+                
+                store.put(showData);
+            };
         } else {
+            // ADD MODE
+            const showData = {
+                title, 
+                season, 
+                episode, 
+                totalSeasons,
+                poster: newPosterBase64, // null if no file
+                updated: Date.now()
+            };
             store.add(showData);
         }
 
@@ -125,65 +147,13 @@ async function saveShow() {
             closeModal();
             renderShows();
         };
-    } catch (err) {
-        alert("Save failed: " + err.message);
-    }
-}
 
-
-        // Safely get values, defaulting to 1 or null if missing
-        const season = parseInt(document.getElementById('season')?.value || 1);
-        const episode = parseInt(document.getElementById('episode')?.value || 1);
-        const totalInput = document.getElementById('totalSeasons')?.value;
-        const totalSeasons = totalInput ? parseInt(totalInput) : null;
-        
-        const fileInput = document.getElementById('poster');
-        const posterFile = fileInput ? fileInput.files[0] : null;
-
-        // Check for hidden ID (Edit Mode)
-        const idInput = document.getElementById('showId');
-        const editId = idInput && idInput.value ? parseInt(idInput.value) : null;
-
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-
-        let showData = {
-            title, season, episode, totalSeasons, updated: Date.now()
+        tx.onerror = (e) => {
+            console.error(e);
+            alert("Transaction failed: " + e.target.error);
         };
 
-        if (editId) {
-            // EDIT MODE
-            showData.id = editId;
-            // Get old record to preserve poster if no new one uploaded
-            store.get(editId).onsuccess = async (e) => {
-                const existing = e.target.result;
-                // If new file, convert it. If not, keep old string.
-                if (posterFile) {
-                    showData.poster = await toBase64(posterFile);
-                } else {
-                    showData.poster = existing.poster;
-                }
-                
-                store.put(showData).onsuccess = () => {
-                    closeModal();
-                    renderShows();
-                };
-            };
-        } else {
-            // ADD MODE
-            if (posterFile) {
-                showData.poster = await toBase64(posterFile);
-            } else {
-                showData.poster = null;
-            }
-
-            store.add(showData).onsuccess = () => {
-                closeModal();
-                renderShows();
-            };
-        }
     } catch (err) {
-        console.error(err);
         alert("Save failed: " + err.message);
     }
 }
@@ -218,19 +188,19 @@ function renderShows() {
             }
 
             const imgHtml = show.poster 
-                ? `<img src="${show.poster}" alt="${show.title}">` 
-                : `<div class="poster-placeholder"><span>${show.title.substring(0,2).toUpperCase()}</span></div>`;
+                ? `<div class="poster-slot"><img src="${show.poster}" alt="${show.title}"></div>` 
+                : `<div class="poster-slot"><div class="poster-placeholder">${show.title.substring(0,2).toUpperCase()}</div></div>`;
 
             card.innerHTML = `
-                <div class="poster-area">${imgHtml}</div>
-                <div class="card-info">
+                ${imgHtml}
+                <div class="card-content">
                     <div class="card-title">${show.title}</div>
-                    <div class="up-next-tag">Watch Next</div>
+                    <div class="next-label">Watch Next</div>
                     <div class="card-stats">
-                        <span>S:<b>${show.season}</b></span>
-                        <span>E:<b>${show.episode}</b></span>
+                        <span>S${show.season}</span>
+                        <span>E${show.episode}</span>
                     </div>
-                    ${statusNote ? `<div class="status-note">${statusNote}</div>` : ''}
+                    ${statusNote ? `<div class="status-badge">${statusNote}</div>` : ''}
                 </div>
                 <div class="card-actions">
                     <button onclick="quickUpdate(${show.id}, 0, 1)">+Ep</button>
@@ -307,8 +277,11 @@ function importData(event) {
             
             await store.clear();
             data.forEach(item => {
-                delete item.id; 
-                store.add(item);
+                // Ensure we don't carry over old IDs if they conflict, 
+                // but IndexedDB autoIncrement handles it if we strip ID.
+                // However, preserving ID is good for backups if we are completely restoring.
+                // For simplicity, we just add them.
+                store.put(item); 
             });
 
             tx.oncomplete = () => {
