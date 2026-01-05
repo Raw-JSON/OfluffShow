@@ -10,7 +10,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // 2. Database Init
-const request = indexedDB.open(DB_NAME, 2); // Increased version for schema updates if needed in future
+const request = indexedDB.open(DB_NAME, 2);
 
 request.onupgradeneeded = (e) => {
     db = e.target.result;
@@ -24,194 +24,206 @@ request.onsuccess = (e) => {
     renderShows();
 };
 
+request.onerror = (e) => {
+    alert("Database Error: " + e.target.error);
+};
+
 // 3. UI Functions
-function openModal(isEdit = false) {
-    document.getElementById('modal').classList.remove('hidden');
-    document.getElementById('modalTitle').innerText = isEdit ? "Edit Show" : "Add Show";
-    if (!isEdit) clearModal();
+function openModal(editId = null) {
+    const modal = document.getElementById('modal');
+    const titleHeader = document.getElementById('modalTitle');
+    
+    // Safety check: ensure modal exists
+    if (!modal) return alert("Error: Modal HTML missing. Please clear cache.");
+
+    modal.classList.remove('hidden');
+
+    if (editId && typeof editId === 'number') {
+        if(titleHeader) titleHeader.innerText = "Edit Show";
+        
+        const tx = db.transaction(STORE_NAME, "readonly");
+        tx.objectStore(STORE_NAME).get(editId).onsuccess = (e) => {
+            const show = e.target.result;
+            if (!show) return; // Show might have been deleted
+
+            // Safely set values if elements exist
+            setValue('showId', show.id);
+            setValue('title', show.title);
+            setValue('season', show.season);
+            setValue('episode', show.episode);
+            setValue('totalSeasons', show.totalSeasons || '');
+        };
+    } else {
+        if(titleHeader) titleHeader.innerText = "Add Show";
+        clearModal();
+    }
 }
 
 function closeModal() {
-    document.getElementById('modal').classList.add('hidden');
+    const modal = document.getElementById('modal');
+    if (modal) modal.classList.add('hidden');
     clearModal();
 }
 
 function clearModal() {
-    document.getElementById('showId').value = '';
-    document.getElementById('title').value = '';
-    document.getElementById('season').value = 1;
-    document.getElementById('episode').value = 1;
-    document.getElementById('totalSeasons').value = '';
-    document.getElementById('poster').value = '';
+    setValue('showId', '');
+    setValue('title', '');
+    setValue('season', 1);
+    setValue('episode', 1);
+    setValue('totalSeasons', '');
+    setValue('poster', ''); // Clears file input
+}
+
+// Helper to safely set value only if element exists
+function setValue(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
 }
 
 // 4. CRUD Operations
 async function saveShow() {
-    const idInput = document.getElementById('showId').value;
-    const title = document.getElementById('title').value.trim();
-    if (!title) return alert("Title required");
+    try {
+        const titleEl = document.getElementById('title');
+        const title = titleEl ? titleEl.value.trim() : "";
+        
+        if (!title) return alert("Title is required");
 
-    const season = parseInt(document.getElementById('season').value) || 1;
-    const episode = parseInt(document.getElementById('episode').value) || 1;
-    const totalSeasons = document.getElementById('totalSeasons').value ? parseInt(document.getElementById('totalSeasons').value) : null;
-    const posterFile = document.getElementById('poster').files[0];
+        // Safely get values, defaulting to 1 or null if missing
+        const season = parseInt(document.getElementById('season')?.value || 1);
+        const episode = parseInt(document.getElementById('episode')?.value || 1);
+        const totalInput = document.getElementById('totalSeasons')?.value;
+        const totalSeasons = totalInput ? parseInt(totalInput) : null;
+        
+        const fileInput = document.getElementById('poster');
+        const posterFile = fileInput ? fileInput.files[0] : null;
 
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
+        // Check for hidden ID (Edit Mode)
+        const idInput = document.getElementById('showId');
+        const editId = idInput && idInput.value ? parseInt(idInput.value) : null;
 
-    // Logic: If ID exists, we are updating. We need to preserve the old poster if no new one is uploaded.
-    let showData = {
-        title, season, episode, totalSeasons, updated: Date.now()
-    };
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
 
-    if (idInput) {
-        // Update existing
-        const id = parseInt(idInput);
-        store.get(id).onsuccess = async (e) => {
-            const oldData = e.target.result;
-            showData.id = id;
-            // Use new poster if uploaded, otherwise keep old
-            showData.poster = posterFile ? await toBase64(posterFile) : oldData.poster;
-            
-            store.put(showData).onsuccess = () => {
+        let showData = {
+            title, season, episode, totalSeasons, updated: Date.now()
+        };
+
+        if (editId) {
+            // EDIT MODE
+            showData.id = editId;
+            // Get old record to preserve poster if no new one uploaded
+            store.get(editId).onsuccess = async (e) => {
+                const existing = e.target.result;
+                // If new file, convert it. If not, keep old string.
+                if (posterFile) {
+                    showData.poster = await toBase64(posterFile);
+                } else {
+                    showData.poster = existing.poster;
+                }
+                
+                store.put(showData).onsuccess = () => {
+                    closeModal();
+                    renderShows();
+                };
+            };
+        } else {
+            // ADD MODE
+            if (posterFile) {
+                showData.poster = await toBase64(posterFile);
+            } else {
+                showData.poster = null;
+            }
+
+            store.add(showData).onsuccess = () => {
                 closeModal();
                 renderShows();
             };
-        };
-    } else {
-        // Create new
-        showData.poster = posterFile ? await toBase64(posterFile) : null;
-        store.add(showData).onsuccess = () => {
-            closeModal();
-            renderShows();
-        };
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Save failed: " + err.message);
     }
 }
 
-function editShow(id) {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const store = tx.objectStore(STORE_NAME);
-    
-    store.get(id).onsuccess = (e) => {
-        const show = e.target.result;
-        if (!show) return;
-
-        document.getElementById('showId').value = show.id;
-        document.getElementById('title').value = show.title;
-        document.getElementById('season').value = show.season;
-        document.getElementById('episode').value = show.episode;
-        document.getElementById('totalSeasons').value = show.totalSeasons || '';
-        
-        openModal(true);
-    };
-}
-
 function renderShows() {
-    const container = document.getElementById('showList');
-    container.innerHTML = '';
+    const list = document.getElementById('showList');
+    if (!list) return;
+
+    list.innerHTML = '';
     
     const tx = db.transaction(STORE_NAME, "readonly");
-    const store = tx.objectStore(STORE_NAME);
-    
-    store.getAll().onsuccess = (e) => {
+    tx.objectStore(STORE_NAME).getAll().onsuccess = (e) => {
         const shows = e.target.result;
         
-        if (shows.length === 0) {
-            container.innerHTML = `
-                <div style="grid-column: 1/-1; text-align: center; color: #666; padding: 40px;">
-                    No shows yet. Click + Add to start.
-                </div>`;
+        if (!shows || shows.length === 0) {
+            list.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px; color:#666;">No shows yet. Click + Add.</div>`;
             return;
         }
 
-        shows.sort((a,b) => b.updated - a.updated).forEach(show => {
+        shows.sort((a,b) => (b.updated || 0) - (a.updated || 0));
+
+        shows.forEach(show => {
             const card = document.createElement('div');
             card.className = 'card';
             
+            // Status Logic
+            let statusNote = "";
+            if (show.totalSeasons) {
+                if (show.season > show.totalSeasons) statusNote = `<span style="color:#03dac6">Completed! 🎉</span>`;
+                else if (show.season == show.totalSeasons) statusNote = `<span style="color:#bb86fc">Final Season</span>`;
+                else if (show.season > 1 && show.episode == 1) statusNote = `Season ${show.season - 1} finished`;
+            }
+
             const imgHtml = show.poster 
                 ? `<img src="${show.poster}" alt="${show.title}">` 
                 : `<div class="poster-placeholder"><span>${show.title.substring(0,2).toUpperCase()}</span></div>`;
 
-            // Status Logic
-            const statusHtml = determineStatus(show);
-
             card.innerHTML = `
-                <div class="poster-slot">${imgHtml}</div>
-                <div class="card-content">
+                <div class="poster-area">${imgHtml}</div>
+                <div class="card-info">
                     <div class="card-title">${show.title}</div>
-                    
-                    <div class="next-label">Up Next:</div>
+                    <div class="up-next-tag">Watch Next</div>
                     <div class="card-stats">
-                        <span>S: <b>${show.season}</b></span>
-                        <span>E: <b>${show.episode}</b></span>
+                        <span>S:<b>${show.season}</b></span>
+                        <span>E:<b>${show.episode}</b></span>
                     </div>
-                    ${statusHtml}
+                    ${statusNote ? `<div class="status-note">${statusNote}</div>` : ''}
                 </div>
                 <div class="card-actions">
-                    <button class="secondary" onclick="updateProgress(${show.id}, 0, 1)">+Ep</button>
-                    <button class="secondary" onclick="updateProgress(${show.id}, 1, 0)">+Sz</button>
-                    <button class="secondary" onclick="editShow(${show.id})" title="Edit">✎</button>
-                    <button class="danger" onclick="deleteShow(${show.id})" title="Delete">×</button>
+                    <button onclick="quickUpdate(${show.id}, 0, 1)">+Ep</button>
+                    <button onclick="quickUpdate(${show.id}, 1, 0)">+Sz</button>
+                    <button onclick="openModal(${show.id})">✎</button>
+                    <button class="danger" onclick="deleteShow(${show.id})">×</button>
                 </div>
             `;
-            container.appendChild(card);
+            list.appendChild(card);
         });
     };
 }
 
-function determineStatus(show) {
-    if (!show.totalSeasons) return ''; // No total set, no badge
-
-    // Logic: 
-    // If Current Season > Total -> Completed
-    // If Current Season == Total -> Final Season
-    // If Current Season > 1 AND Episode is 1 -> Just finished previous season
-    
-    if (show.season > show.totalSeasons) {
-        return `<div class="status-badge">Completed! 🎉</div>`;
-    }
-    
-    if (show.season === show.totalSeasons) {
-         if (show.episode === 1 && show.season > 1) {
-             return `<div class="status-badge">Season ${show.season - 1} Finished</div>`;
-         }
-        return `<div class="status-badge" style="color:#bb86fc">Final Season</div>`;
-    }
-
-    if (show.season > 1 && show.episode === 1) {
-        return `<div class="status-badge">Season ${show.season - 1} Finished</div>`;
-    }
-
-    // Default: Show progress (e.g. 2/5 Seasons)
-    return `<div class="status-badge" style="color:#888; background:transparent; padding-left:0;">${show.season}/${show.totalSeasons} Seasons</div>`;
-}
-
-function updateProgress(id, dS, dE) {
+function quickUpdate(id, ds, de) {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
-    
     store.get(id).onsuccess = (e) => {
         const data = e.target.result;
         if (!data) return;
 
-        if (dS > 0) {
-            data.season += dS;
-            data.episode = 1; // Reset ep on new season
+        if (ds > 0) {
+            data.season += ds;
+            data.episode = 1; 
         } else {
-            data.episode += dE;
+            data.episode += de;
         }
         
         data.updated = Date.now();
-        store.put(data);
-        tx.oncomplete = () => renderShows();
+        store.put(data).onsuccess = () => renderShows();
     };
 }
 
 function deleteShow(id) {
-    if (!confirm("Remove this show?")) return;
+    if (!confirm("Delete this show?")) return;
     const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).delete(id);
-    tx.oncomplete = () => renderShows();
+    tx.objectStore(STORE_NAME).delete(id).onsuccess = () => renderShows();
 }
 
 // 5. Utilities
@@ -244,25 +256,24 @@ function importData(event) {
     const reader = new FileReader();
     reader.onload = async (e) => {
         try {
-            const shows = JSON.parse(e.target.result);
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data)) throw new Error("Invalid format");
+            
             const tx = db.transaction(STORE_NAME, "readwrite");
             const store = tx.objectStore(STORE_NAME);
             
             await store.clear();
-            shows.forEach(show => {
-                // If importing old backups without ID, we can let autoIncrement handle it or use existing logic
-                // Deleting ID ensures we don't conflict with key paths if schematic changes occur, 
-                // but usually fine to keep if migrating same DB
-                delete show.id; 
-                store.add(show);
+            data.forEach(item => {
+                delete item.id; 
+                store.add(item);
             });
 
             tx.oncomplete = () => {
                 renderShows();
-                alert("Restored!");
+                alert("Restored successfully!");
             };
         } catch (err) {
-            alert("Invalid Backup File");
+            alert("Backup file invalid: " + err.message);
         }
     };
     reader.readAsText(file);
