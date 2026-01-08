@@ -1,4 +1,4 @@
-const CACHE_NAME = "0fluff-v7"; // Increment this version number whenever you update code!
+const CACHE_NAME = "0fluff-v8"; // Increment this version number whenever you update code!
 
 const ASSETS = [
   "./",
