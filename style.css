@@ -243,3 +243,101 @@ input:focus { border-color: var(--accent); outline: none; }
 
 .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
 .modal-actions button { flex: 1; }
+
+/* API Card Styles */
+.card-click-wrapper {
+    cursor: pointer;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.tag-finished {
+    background: var(--success);
+    color: #000;
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 800;
+}
+.tag-progress {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+}
+
+.progress-container {
+    height: 4px;
+    background: #333;
+    width: 100%;
+    border-radius: 2px;
+    margin-top: auto; /* Push to bottom */
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+}
+
+.card-api-hint {
+    font-size: 0.7rem;
+    color: #555;
+    text-align: center;
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Checklist Grid Modal */
+.checklist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(45px, 1fr));
+    gap: 10px;
+    margin: 20px 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.ep-box {
+    aspect-ratio: 1;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-weight: bold;
+    color: #666;
+    transition: all 0.2s;
+}
+
+.ep-box.watched {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+}
+
+.ep-box.next {
+    border: 2px solid var(--text);
+    color: var(--text);
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(255,255,255,0.1);
+}
+
+.season-complete-banner {
+    background: rgba(3, 218, 198, 0.15);
+    border: 1px solid var(--success);
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    margin-top: 15px;
+}
+
+.next-season-btn {
+    background: var(--success);
+    color: #000;
+    margin-top: 10px;
+    width: 100%;
+}
