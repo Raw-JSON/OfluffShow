@@ -1,239 +1,162 @@
-let db;
-const DB_NAME = "0fluffDB";
-const STORE_NAME = "shows";
+// 0fluffShow - Main Controller
 
-// 1. PWA Service Worker Registration
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js')
-        .then(() => console.log('SW Registered'))
-        .catch(err => console.log('SW Fail:', err));
-}
-
-// 2. Database Init
-const request = indexedDB.open(DB_NAME, 2);
-
-request.onupgradeneeded = (e) => {
-    db = e.target.result;
-    if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
-    }
-};
-
-request.onsuccess = (e) => {
-    db = e.target.result;
-    renderShows();
-};
-
-request.onerror = (e) => {
-    alert("Database Error: " + e.target.error);
-};
-
-// 3. UI Functions
-function openModal(editId = null) {
-    const modal = document.getElementById('modal');
-    const titleHeader = document.getElementById('modalTitle');
-    
-    // Safety check: ensure modal exists
-    if (!modal) return alert("Error: Modal HTML missing. Please clear cache.");
-
-    modal.classList.remove('hidden');
-
-    if (editId && typeof editId === 'number') {
-        if(titleHeader) titleHeader.innerText = "Edit Show";
+const app = {
+    async init() {
+        await API.init(); // Check for key
+        await UI.renderList();
         
-        const tx = db.transaction(STORE_NAME, "readonly");
-        tx.objectStore(STORE_NAME).get(editId).onsuccess = (e) => {
-            const show = e.target.result;
-            if (!show) return; // Show might have been deleted
+        // Populate Settings Input if key exists
+        const key = await DB.getSetting('tmdb_key');
+        if (key) document.getElementById('apiKeyInput').value = key;
+    },
 
-            // Safely set values if elements exist
-            setValue('showId', show.id);
-            setValue('title', show.title);
-            setValue('season', show.season);
-            setValue('episode', show.episode);
-            setValue('totalSeasons', show.totalSeasons || '');
-        };
-    } else {
-        if(titleHeader) titleHeader.innerText = "Add Show";
-        clearModal();
-    }
-}
+    // --- Modal Logic ---
+    openModal() {
+        document.getElementById('modal').classList.remove('hidden');
+        UI.renderModalContent(null); // Render Add Mode
+    },
 
-function closeModal() {
-    const modal = document.getElementById('modal');
-    if (modal) modal.classList.add('hidden');
-    clearModal();
-}
+    async openEdit(id) {
+        document.getElementById('modal').classList.remove('hidden');
+        await UI.renderModalContent(id); // Render Edit Mode
+        const show = await DB.getShow(id);
+        if (show) UI.fillForm(show);
+    },
 
-function clearModal() {
-    setValue('showId', '');
-    setValue('title', '');
-    setValue('season', 1);
-    setValue('episode', 1);
-    setValue('totalSeasons', '');
-    setValue('poster', ''); // Clears file input
-}
+    closeModal() {
+        document.getElementById('modal').classList.add('hidden');
+        document.getElementById('modalBody').innerHTML = ''; // Clear DOM
+    },
 
-// Helper to safely set value only if element exists
-function setValue(id, val) {
-    const el = document.getElementById(id);
-    if (el) el.value = val;
-}
+    // --- API Selection ---
+    async selectApiShow(tmdbId) {
+        const details = await API.getDetails(tmdbId);
+        if (!details) return alert("Failed to fetch details");
 
-// 4. CRUD Operations
-async function saveShow() {
-    try {
+        // Fill hidden inputs
+        document.getElementById('apiSearch').value = details.title;
+        document.getElementById('title').value = details.title;
+        document.getElementById('tmdbId').value = details.tmdbId;
+        document.getElementById('apiPoster').value = details.poster;
+        document.getElementById('apiStatus').value = details.status;
+        document.getElementById('apiRating').value = details.rating;
+        document.getElementById('apiTotalSeasons').value = details.totalSeasons;
+        document.getElementById('searchResults').classList.add('hidden');
+    },
+
+    // --- CRUD ---
+    async saveShow() {
+        const idInput = document.getElementById('showId');
+        const editId = idInput && idInput.value ? parseInt(idInput.value) : null;
+        
         const titleEl = document.getElementById('title');
         const title = titleEl ? titleEl.value.trim() : "";
         if (!title) return alert("Title is required");
 
-        const season = parseInt(document.getElementById('season')?.value || 1);
-        const episode = parseInt(document.getElementById('episode')?.value || 1);
+        const season = parseInt(document.getElementById('season').value || 1);
+        const episode = parseInt(document.getElementById('episode').value || 1);
+
+        // Gather Data
+        let showData = {
+            title, season, episode,
+            updated: Date.now()
+        };
+
+        if (editId) showData.id = editId;
+
+        // Check source of data (API or Manual)
+        const apiIdEl = document.getElementById('tmdbId');
         
-        const totalInput = document.getElementById('totalSeasons')?.value;
-        const totalSeasons = totalInput ? parseInt(totalInput) : null;
-
-        // 1. CONVERT IMAGE FIRST (Outside the transaction)
-        const fileInput = document.getElementById('poster');
-        const posterFile = fileInput ? fileInput.files[0] : null;
-        let newPosterBase64 = null;
-        
-        if (posterFile) {
-            newPosterBase64 = await toBase64(posterFile);
-        }
-
-        // 2. NOW START TRANSACTION
-        // We only open the transaction AFTER the await finishes
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-
-        // Check if we are editing or adding
-        const idInput = document.getElementById('showId');
-        const editId = idInput && idInput.value ? parseInt(idInput.value) : null;
-
-        if (editId) {
-            // EDIT MODE
-            store.get(editId).onsuccess = (e) => {
-                const existing = e.target.result;
-                if (!existing) return;
-
-                const showData = {
-                    id: editId,
-                    title, 
-                    season, 
-                    episode, 
-                    totalSeasons,
-                    // Use new poster if uploaded, otherwise keep old one
-                    poster: newPosterBase64 || existing.poster, 
-                    updated: Date.now()
-                };
-                
-                store.put(showData);
-            };
+        if (apiIdEl && apiIdEl.value) {
+            // API Data
+            showData.tmdbId = parseInt(apiIdEl.value);
+            showData.poster = document.getElementById('apiPoster').value;
+            showData.status = document.getElementById('apiStatus').value;
+            showData.rating = document.getElementById('apiRating').value;
+            showData.totalSeasons = parseInt(document.getElementById('apiTotalSeasons').value || 0);
         } else {
-            // ADD MODE
-            const showData = {
-                title, 
-                season, 
-                episode, 
-                totalSeasons,
-                poster: newPosterBase64, // null if no file
-                updated: Date.now()
-            };
-            store.add(showData);
+            // Manual Data
+            const fileInput = document.getElementById('poster');
+            const totalSeasonsInput = document.getElementById('totalSeasons');
+            
+            if (totalSeasonsInput) showData.totalSeasons = parseInt(totalSeasonsInput.value);
+
+            // Handle Image conversion
+            if (fileInput && fileInput.files[0]) {
+                showData.poster = await toBase64(fileInput.files[0]);
+            } else if (editId) {
+                // Keep existing poster if editing and no new file
+                const old = await DB.getShow(editId);
+                showData.poster = old.poster;
+            }
         }
 
-        tx.oncomplete = () => {
-            closeModal();
-            renderShows();
-        };
-
-        tx.onerror = (e) => {
-            console.error(e);
-            alert("Transaction failed: " + e.target.error);
-        };
-
-    } catch (err) {
-        alert("Save failed: " + err.message);
-    }
-}
-
-function renderShows() {
-    const list = document.getElementById('showList');
-    if (!list) return;
-
-    list.innerHTML = '';
-    
-    const tx = db.transaction(STORE_NAME, "readonly");
-    tx.objectStore(STORE_NAME).getAll().onsuccess = (e) => {
-        const shows = e.target.result;
-        
-        if (!shows || shows.length === 0) {
-            list.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px; color:#666;">No shows yet. Click + Add.</div>`;
-            return;
+        try {
+            await DB.saveShow(showData);
+            this.closeModal();
+            UI.renderList();
+        } catch (err) {
+            alert("Error saving: " + err.message);
         }
+    },
 
-        shows.sort((a,b) => (b.updated || 0) - (a.updated || 0));
-
-        shows.forEach(show => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            
-            
-             // 4. status logic
-            const imgHtml = show.poster 
-                ? `<div class="poster-slot"><img src="${show.poster}" alt="${show.title}"></div>` 
-                : `<div class="poster-slot"><div class="poster-placeholder">${show.title.substring(0,2).toUpperCase()}</div></div>`;
-
-            card.innerHTML = `
-                ${imgHtml}
-                <div class="card-content">
-                    <div class="card-title">${show.title}</div>
-                    <div class="next-label">Watch Next</div>
-                    <div class="card-stats">
-                        <span>S${show.season}</span>
-                        <span>E${show.episode}</span>
-                    </div>
-                    ${statusNote ? `<div class="status-badge">${statusNote}</div>` : ''}
-                </div>
-                <div class="card-actions">
-                    <button onclick="quickUpdate(${show.id}, 0, 1)">+Ep</button>
-                    <button onclick="quickUpdate(${show.id}, 1, 0)">+Sz</button>
-                    <button onclick="openModal(${show.id})">✎</button>
-                    <button class="danger" onclick="deleteShow(${show.id})">×</button>
-                </div>
-            `;
-            list.appendChild(card);
-        });
-    };
-}
-
-function quickUpdate(id, ds, de) {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    store.get(id).onsuccess = (e) => {
-        const data = e.target.result;
-        if (!data) return;
+    async quickUpdate(id, ds, de) {
+        const show = await DB.getShow(id);
+        if (!show) return;
 
         if (ds > 0) {
-            data.season += ds;
-            data.episode = 1; 
+            show.season += ds;
+            show.episode = 1;
         } else {
-            data.episode += de;
+            show.episode += de;
         }
-        
-        data.updated = Date.now();
-        store.put(data).onsuccess = () => renderShows();
+        show.updated = Date.now();
+        await DB.saveShow(show);
+        UI.renderList();
+    },
+
+    async deleteShow(id) {
+        if (!confirm("Delete show?")) return;
+        await DB.deleteShow(id);
+        UI.renderList();
+    }
+};
+
+// --- Settings Logic ---
+function openSettings() { document.getElementById('settingsModal').classList.remove('hidden'); }
+function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
+async function saveSettings() {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    await DB.saveSetting('tmdb_key', key);
+    location.reload(); // Reload to re-init API
+}
+
+// --- Backup/Restore Wrappers ---
+async function exportData() {
+    const shows = await DB.getAllShows();
+    const blob = new Blob([JSON.stringify(shows)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ofluff_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+}
+
+async function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            await DB.clearShows();
+            for (const item of data) await DB.saveShow(item);
+            location.reload();
+        } catch (err) { alert("Invalid backup"); }
     };
+    reader.readAsText(file);
 }
 
-function deleteShow(id) {
-    if (!confirm("Delete this show?")) return;
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).delete(id).onsuccess = () => renderShows();
-}
-
-// 5. Utilities
 function toBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -243,48 +166,14 @@ function toBase64(file) {
     });
 }
 
-function exportData() {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    tx.objectStore(STORE_NAME).getAll().onsuccess = (e) => {
-        const data = JSON.stringify(e.target.result);
-        const blob = new Blob([data], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `ofluff_backup_${new Date().toISOString().slice(0,10)}.json`;
-        a.click();
-    };
-}
+// Global Expose for HTML OnClick
+window.app = app;
+window.openModal = app.openModal;
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.saveSettings = saveSettings;
+window.exportData = exportData;
+window.importData = importData;
 
-function importData(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = JSON.parse(e.target.result);
-            if (!Array.isArray(data)) throw new Error("Invalid format");
-            
-            const tx = db.transaction(STORE_NAME, "readwrite");
-            const store = tx.objectStore(STORE_NAME);
-            
-            await store.clear();
-            data.forEach(item => {
-                // Ensure we don't carry over old IDs if they conflict, 
-                // but IndexedDB autoIncrement handles it if we strip ID.
-                // However, preserving ID is good for backups if we are completely restoring.
-                // For simplicity, we just add them.
-                store.put(item); 
-            });
-
-            tx.oncomplete = () => {
-                renderShows();
-                alert("Restored successfully!");
-            };
-        } catch (err) {
-            alert("Backup file invalid: " + err.message);
-        }
-    };
-    reader.readAsText(file);
-}
+// Start
+app.init();
