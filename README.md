@@ -1,40 +1,30 @@
-# 0FluffShow 📺✨
+# 0fluffShow 📺✨
 
-**No ads. No spoilers. Just your shows.**  
+> **No ads. No spoilers. Just your shows.**
 
- [Start tracking](https://raw-json.github.io/0fluffShow/)
+[Start tracking](https://raw-json.github.io/0fluffShow/)
 
 ---
 
 ## 🚀 Features
-- 🎬 **Track Shows & Episodes:** Add Title, Season, Episode, and Poster Image.  
-- ⚡ **Quick Updates:** Increment your episode or season easily.  
-- 💾 **Backup & Restore:** Save or load your series data with JSON.  
-- 🌙 **Dark Mode:** OLED-friendly theme for binge sessions.  
-- 🖥️ **Offline First:** Works completely in your browser.
+- 🎬 **Smart API Tracking:** Connect TMDB to see exact season lengths and episode counts.
+- ✅ **Interactive Checklist:** Visual grid for ticking off episodes as you watch.
+- 🔄 **Auto-Transition:** Automatically prompts to start the next season when one is finished.
+- ⚡ **Manual Mode:** Still available for those who want a simple counter without external data.
+- 💾 **Privacy First:** All data stays in your IndexedDB. Backup/Restore via JSON files.
+- 🌙 **OLED Dark Mode:** High-contrast theme for minimal eye strain.
 
 ---
 
 ## 🛠 Tech Stack
-- HTML, CSS, JavaScript  
-- IndexedDB for local storage  
-- Modular code structure (`index.html`, `style.css`, `app.js`, `db.js`)  
-
----
-
-## 📦 Usage
-1. Open [Live Link](https://raw-json.github.io/0fluffShow/) or `index.html` in your browser.  
-2. Click **Add Show** to start tracking your series.  
-3. Use **Backup(↓)/Restore(↑)** to save or load data.  
+- Vanilla JavaScript (ES6+)
+- CSS3 (Custom Properties & Grid)
+- IndexedDB (Local persistence)
+- TMDB API (Optional metadata)
 
 ---
 
 ## 📄 License
-[MIT License](LICENSE) free to use and modify.
-
----
-
-## 🤖 Transparency Note
-This app **was generated with Google Gemini** based on my prompts. I designed the features, but the AI wrote the HTML, CSS, and JavaScript.
+[MIT License](LICENSE) - Free to use and modify.
 
 ✨ Made with 💡 ideas + 🤖 Gemini magic.
