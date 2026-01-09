@@ -15,48 +15,58 @@ const UI = {
             const card = document.createElement('div');
             card.className = 'card';
             
-            // Poster
             const imgHtml = show.poster 
                 ? `<div class="poster-slot"><img src="${show.poster}" alt="${show.title}"></div>` 
                 : `<div class="poster-slot"><div class="poster-placeholder">${show.title.substring(0,2).toUpperCase()}</div></div>`;
 
-            // Logic Split: API vs Manual
             let bottomSection = '';
             let badges = '';
             let clickAction = '';
 
             if (show.tmdbId) {
                 // --- API MODE ---
-                clickAction = `onclick="app.openChecklist(${show.id})"`; // Clicking card opens checklist
-                
-                // Calculate Progress in current season
-                // We need to know how many eps are in the CURRENT season
-                const currentSeasonData = show.seasonData ? show.seasonData.find(s => s.number === show.season) : null;
-                const totalEps = currentSeasonData ? currentSeasonData.episodes : '?';
-                const progressPct = (show.episode / totalEps) * 100;
-                
-                // Tag Logic
-                let statusTag = '';
-                if (show.episode >= totalEps) {
-                    statusTag = `<span class="tag-finished">SEASON FINISHED</span>`;
+                clickAction = `onclick="app.openChecklist(${show.id})"`;
+
+                // CHECK FOR LEGACY DATA (Missing seasonData)
+                if (!show.seasonData || !Array.isArray(show.seasonData)) {
+                    // Legacy View
+                    badges = `<div class="rating-badge">S${show.season}</div>`;
+                    bottomSection = `
+                        <div class="card-api-hint" style="color:var(--warning); font-weight:bold;">
+                            ⚠ Tap to Sync
+                        </div>`;
                 } else {
-                    statusTag = `<span class="tag-progress">${show.episode} / ${totalEps}</span>`;
+                    // Standard Smart View
+                    const currentSeasonData = show.seasonData.find(s => s.number === show.season);
+                    const totalEps = currentSeasonData ? currentSeasonData.episodes : '?';
+                    
+                    // Calculate Percentage
+                    let progressPct = 0;
+                    if (typeof totalEps === 'number') {
+                        progressPct = (show.episode / totalEps) * 100;
+                    }
+
+                    // Tag Logic
+                    let statusTag = '';
+                    if (show.episode >= totalEps && typeof totalEps === 'number') {
+                        statusTag = `<span class="tag-finished">SEASON FINISHED</span>`;
+                    } else {
+                        statusTag = `<span class="tag-progress">${show.episode} / ${totalEps}</span>`;
+                    }
+
+                    badges = `<div class="rating-badge">S${show.season}</div> ${statusTag}`;
+                    bottomSection = `
+                        <div class="progress-container">
+                            <div class="progress-bar" style="width: ${Math.min(progressPct, 100)}%"></div>
+                        </div>
+                        <div class="card-api-hint">Tap to track</div>
+                    `;
                 }
-
-                badges = `<div class="rating-badge">S${show.season}</div> ${statusTag}`;
-
-                bottomSection = `
-                    <div class="progress-container">
-                        <div class="progress-bar" style="width: ${Math.min(progressPct, 100)}%"></div>
-                    </div>
-                    <div class="card-api-hint">Tap to track</div>
-                `;
 
             } else {
                 // --- MANUAL MODE ---
-                clickAction = ''; // No card click, buttons only
+                clickAction = ''; 
                 badges = `<div class="status-badge manual">Manual</div>`;
-                
                 bottomSection = `
                     <div class="card-stats">
                         <span>S${show.season}</span>
@@ -85,39 +95,32 @@ const UI = {
         });
     },
 
-    // --- CHECKLIST MODAL (API ONLY) ---
     renderChecklist(show) {
         const body = document.getElementById('modalBody');
         const title = document.getElementById('modalTitle');
         title.innerText = `${show.title} - S${show.season}`;
 
-        // Get total eps for this season
-        const sData = show.seasonData.find(s => s.number === show.season);
-        const totalEps = sData ? sData.episodes : 24; // Default fallback if data missing
+        // SAFETY: Fallback if data is still somehow missing
+        const safeSeasonData = show.seasonData || [];
+        const sData = safeSeasonData.find(s => s.number === show.season);
+        const totalEps = sData ? sData.episodes : 24; 
 
         let gridHtml = `<div class="checklist-grid">`;
-        
         for (let i = 1; i <= totalEps; i++) {
             const isWatched = i <= show.episode;
             const isNext = i === show.episode + 1;
-            
             let classList = "ep-box";
             if (isWatched) classList += " watched";
             if (isNext) classList += " next";
 
-            gridHtml += `
-                <div class="${classList}" onclick="app.setEpisode(${show.id}, ${i})">
-                    ${i}
-                </div>
-            `;
+            gridHtml += `<div class="${classList}" onclick="app.setEpisode(${show.id}, ${i})">${i}</div>`;
         }
         gridHtml += `</div>`;
 
-        // "Next Season" Button if finished
+        // Next Season Logic
         let nextSeasonHtml = '';
         if (show.episode >= totalEps) {
-            // Check if there is a next season
-            const nextS = show.seasonData.find(s => s.number === show.season + 1);
+            const nextS = safeSeasonData.find(s => s.number === show.season + 1);
             if (nextS) {
                 nextSeasonHtml = `
                     <div class="season-complete-banner">
@@ -125,8 +128,7 @@ const UI = {
                         <button class="next-season-btn" onclick="app.startSeason(${show.id}, ${show.season + 1})">
                             Start Season ${show.season + 1}
                         </button>
-                    </div>
-                `;
+                    </div>`;
             } else {
                 nextSeasonHtml = `<div class="season-complete-banner"><p>All caught up!</p></div>`;
             }
@@ -142,13 +144,38 @@ const UI = {
         `;
     },
 
-    // --- ADD/EDIT FORM ---
+    // ... (Keep existing RenderModalContent, PopulateSeasonSelect, etc.)
+    
+    // RE-INCLUDED FOR COMPLETENESS (No changes below here, just context)
+    populateSeasonSelect(seasonData) {
+        const select = document.getElementById('seasonSelect');
+        const container = document.getElementById('apiSelections');
+        select.innerHTML = '';
+        seasonData.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.number;
+            opt.innerText = `Season ${s.number} (${s.episodes} Eps)`;
+            opt.dataset.eps = s.episodes;
+            select.appendChild(opt);
+        });
+        container.classList.remove('hidden');
+        document.getElementById('searchResults').classList.add('hidden');
+    },
+
+    updateEpisodeMax() {
+        const select = document.getElementById('seasonSelect');
+        const epInput = document.getElementById('episode');
+        const eps = select.options[select.selectedIndex].dataset.eps;
+        epInput.max = eps;
+        epInput.value = 1;
+    },
+
     async renderModalContent(editId = null) {
+        // (Copy from previous Step - Ensure this function exists as provided before)
         const body = document.getElementById('modalBody');
         const titleHeader = document.getElementById('modalTitle');
         const hasKey = API.hasKey();
 
-        // 1. If API Mode and ADDING (Search view)
         if (hasKey && !editId) {
             titleHeader.innerText = "Search Show";
             body.innerHTML = `
@@ -161,8 +188,8 @@ const UI = {
                 <input type="hidden" id="apiPoster">
                 <input type="hidden" id="apiStatus">
                 <input type="hidden" id="apiRating">
-                <input type="hidden" id="apiSeasonData"> <input type="hidden" id="title">
-                
+                <input type="hidden" id="apiSeasonData">
+                <input type="hidden" id="title">
                 <div id="apiSelections" class="hidden">
                     <div class="form-group">
                         <label>Where are you?</label>
@@ -177,13 +204,9 @@ const UI = {
                     </div>
                 </div>
             `;
-            
-            // Attach Search Listener
             document.getElementById('apiSearch').addEventListener('input', debounce((e) => UI.handleSearch(e.target.value), 500));
             return;
         }
-
-        // 2. Manual Mode OR Editing Manual Show
         titleHeader.innerText = editId ? "Edit Show" : "Add Show (Manual)";
         body.innerHTML = `
             <input type="hidden" id="showId">
@@ -211,34 +234,6 @@ const UI = {
             </div>
         `;
     },
-
-    // Helper to populate the Select Dropdown for API
-    populateSeasonSelect(seasonData) {
-        const select = document.getElementById('seasonSelect');
-        const container = document.getElementById('apiSelections');
-        select.innerHTML = '';
-        
-        seasonData.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s.number;
-            opt.innerText = `Season ${s.number} (${s.episodes} Eps)`;
-            opt.dataset.eps = s.episodes;
-            select.appendChild(opt);
-        });
-
-        container.classList.remove('hidden');
-        document.getElementById('searchResults').classList.add('hidden');
-    },
-
-    updateEpisodeMax() {
-        const select = document.getElementById('seasonSelect');
-        const epInput = document.getElementById('episode');
-        const eps = select.options[select.selectedIndex].dataset.eps;
-        epInput.max = eps;
-        epInput.value = 1;
-    },
-
-    // ... (Keep handleSearch and other helpers from previous version) ...
     async handleSearch(query) {
         const resultsDiv = document.getElementById('searchResults');
         if (query.length < 2) { resultsDiv.classList.add('hidden'); return; }
